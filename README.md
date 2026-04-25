@@ -1,4 +1,4 @@
-# 🛍️ DemoApp — E-Commerce Web App
+# 🛍️ ALAN WALKER — E-Commerce Web App
 
 A modern, mobile-first e-commerce SPA (Single Page Application) built with pure **HTML, CSS & JavaScript** — no frameworks, no build tools.
 
