@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Panel — ALAN WALKER</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:'Inter',sans-serif;background:#0d0d1a;color:#fff;display:flex;min-height:100vh;}
+
+    /* ── SIDEBAR ── */
+    .sidebar{width:220px;background:linear-gradient(180deg,#12122a,#0d0d1a);border-right:1px solid rgba(147,52,233,0.2);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .3s;}
+    .sb-logo{padding:22px 20px 18px;font-size:20px;font-weight:800;color:#fff;border-bottom:1px solid rgba(147,52,233,0.15);}
+    .sb-logo span{color:#ffd700;}
+    .sb-badge{display:inline-block;background:linear-gradient(135deg,#7c3aed,#c084fc);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle;}
+    .sb-nav{flex:1;padding:14px 10px;display:flex;flex-direction:column;gap:4px;}
+    .sb-item{display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:10px;cursor:pointer;font-size:13px;font-weight:500;color:rgba(255,255,255,0.55);transition:all .2s;}
+    .sb-item:hover{background:rgba(147,52,233,0.12);color:#fff;}
+    .sb-item.active{background:linear-gradient(135deg,rgba(147,52,233,0.3),rgba(192,132,252,0.15));color:#c084fc;font-weight:700;}
+    .sb-item .ico{font-size:16px;width:20px;text-align:center;}
+    .sb-footer{padding:16px;border-top:1px solid rgba(147,52,233,0.15);}
+    .sb-admin-info{font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:10px;line-height:1.6;}
+    .sb-logout{width:100%;background:rgba(255,61,113,0.12);border:1.5px solid #ff3d71;color:#ff3d71;padding:9px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px;}
+    .sb-logout:hover{background:#ff3d71;color:#fff;}
+
+    /* ── MAIN ── */
+    .main{margin-left:220px;flex:1;display:flex;flex-direction:column;min-height:100vh;}
+    .menu-btn{display:none;background:none;border:none;color:#fff;font-size:22px;cursor:pointer;padding:0;line-height:1;}
+    .sb-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:90;backdrop-filter:blur(2px);}
+    .sb-backdrop.open{display:block;}
+
+    /* Top Bar */
+    .topbar{background:linear-gradient(135deg,#12122a,#1a1a35);border-bottom:1px solid rgba(147,52,233,0.2);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+    .topbar-title{font-size:16px;font-weight:700;color:#fff;}
+    .topbar-right{display:flex;align-items:center;gap:12px;}
+    .live-dot{display:flex;align-items:center;gap:6px;font-size:12px;color:#4ade80;font-weight:600;}
+    .live-dot span{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:pulse 1.5s infinite;}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.5;transform:scale(1.3);}}
+    .admin-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#7c3aed,#c084fc);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;}
+
+    /* Content */
+    .content{padding:24px;flex:1;}
+    .section{display:none;}
+    .section.active{display:block;}
+
+    /* Stats */
+    .stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:24px;}
+    @media(min-width:700px){.stats-grid{grid-template-columns:repeat(4,1fr);}}
+    .stat{border-radius:16px;padding:20px 16px;text-align:center;border:1px solid rgba(255,255,255,0.06);transition:transform .2s;}
+    .stat:hover{transform:translateY(-2px);}
+    .s-purple{background:linear-gradient(135deg,#1e0a3c,#2d1260);border-color:rgba(147,52,233,.3);}
+    .s-gold{background:linear-gradient(135deg,#1c1400,#2d2000);border-color:rgba(255,215,0,.25);}
+    .s-green{background:linear-gradient(135deg,#001c0d,#002d14);border-color:rgba(74,222,128,.25);}
+    .s-red{background:linear-gradient(135deg,#1c0010,#2d001a);border-color:rgba(255,61,113,.25);}
+    .stat-ico{font-size:26px;margin-bottom:8px;}
+    .stat-num{font-size:28px;font-weight:800;color:#e2d9ff;}
+    .stat-lbl{font-size:11px;color:rgba(255,255,255,.45);margin-top:5px;font-weight:500;}
+
+    /* Cards */
+    .card{background:#12122a;border:1px solid rgba(147,52,233,.18);border-radius:16px;overflow:hidden;margin-bottom:20px;}
+    .card-head{padding:14px 18px;font-size:13px;font-weight:700;color:#c084fc;background:rgba(147,52,233,.1);border-bottom:1px solid rgba(147,52,233,.15);display:flex;align-items:center;justify-content:space-between;}
+    .card-head span{font-size:11px;color:rgba(255,255,255,.3);font-weight:400;}
+    .table-wrap{overflow-x:auto;}
+    table{width:100%;border-collapse:collapse;font-size:13px;}
+    th{background:rgba(147,52,233,.12);color:#a78bfa;font-weight:700;padding:11px 16px;text-align:left;white-space:nowrap;}
+    td{padding:11px 16px;border-bottom:1px solid rgba(255,255,255,.04);color:rgba(255,255,255,.8);white-space:nowrap;}
+    tr:last-child td{border-bottom:none;}
+    tr:hover td{background:rgba(147,52,233,.06);}
+    .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;background:rgba(147,52,233,.2);color:#c084fc;text-transform:capitalize;}
+    .price{color:#4ade80;font-weight:700;}
+    .rating{color:#ffd700;}
+    .empty-row{text-align:center;padding:28px;color:rgba(255,255,255,.3);}
+
+    /* Page header */
+    .page-hdr{margin-bottom:22px;}
+    .page-hdr h2{font-size:20px;font-weight:800;color:#fff;}
+    .page-hdr p{font-size:13px;color:rgba(255,255,255,.4);margin-top:4px;}
+
+    /* ── ADD PRODUCT MODAL ── */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity .25s;}
+    .modal-overlay.open{opacity:1;pointer-events:all;}
+    .modal{background:#1a1a35;border:1px solid rgba(147,52,233,.35);border-radius:20px;width:100%;max-width:480px;padding:28px 24px;position:relative;max-height:90vh;overflow-y:auto;transform:translateY(20px);transition:transform .25s;}
+    .modal-overlay.open .modal{transform:translateY(0);}
+    .modal h3{font-size:17px;font-weight:800;color:#fff;margin-bottom:4px;}
+    .modal p{font-size:12px;color:rgba(255,255,255,.4);margin-bottom:20px;}
+    .modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:rgba(255,255,255,.4);font-size:20px;cursor:pointer;line-height:1;}
+    .modal-close:hover{color:#fff;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;}
+    .field label{font-size:11px;font-weight:600;color:rgba(255,255,255,.5);letter-spacing:.3px;}
+    .field input,.field select{background:#0d0d1a;border:1.5px solid rgba(147,52,233,.25);border-radius:10px;padding:10px 12px;color:#fff;font-size:13px;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s;}
+    .field input:focus,.field select:focus{border-color:#9334e9;}
+    .field input::placeholder{color:rgba(255,255,255,.25);}
+    .field select option{background:#1a1a35;}
+    .btn-primary{width:100%;padding:13px;background:linear-gradient(135deg,#7c3aed,#c084fc);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;margin-top:4px;}
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(147,52,233,.4);}
+    .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none;}
+    .add-btn{background:linear-gradient(135deg,#7c3aed,#c084fc);border:none;color:#fff;padding:7px 16px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;display:flex;align-items:center;gap:6px;}
+    .add-btn:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(147,52,233,.4);}
+    .del-btn{background:none;border:none;color:rgba(255,61,113,.7);font-size:12px;cursor:pointer;padding:3px 8px;border-radius:6px;transition:all .2s;font-family:'Inter',sans-serif;}
+    .del-btn:hover{background:rgba(255,61,113,.15);color:#ff3d71;}
+    .toast-admin{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:#1a1a35;border:1px solid rgba(147,52,233,.4);color:#c084fc;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:all .3s;white-space:nowrap;}
+    .toast-admin.show{opacity:1;transform:translateX(-50%) translateY(0);}
+    /* Image upload styles */
+    .img-upload-box{border:2px dashed rgba(147,52,233,.35);border-radius:12px;padding:18px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(147,52,233,.05);position:relative;}
+    .img-upload-box:hover{border-color:#9334e9;background:rgba(147,52,233,.1);}
+    .img-upload-box input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+    .img-upload-box .upload-icon{font-size:28px;margin-bottom:6px;}
+    .img-upload-box .upload-text{font-size:12px;color:rgba(255,255,255,.5);}
+    .img-upload-box .upload-text strong{color:#c084fc;}
+    .img-preview{width:100%;height:140px;object-fit:cover;border-radius:10px;margin-top:10px;display:none;border:1px solid rgba(147,52,233,.3);}
+    .upload-progress{height:4px;background:rgba(255,255,255,.1);border-radius:4px;margin-top:10px;overflow:hidden;display:none;}
+    .upload-progress-bar{height:100%;background:linear-gradient(90deg,#7c3aed,#c084fc);width:0%;transition:width .3s;border-radius:4px;}
+    .img-tabs{display:flex;gap:8px;margin-bottom:10px;}
+    .img-tab{flex:1;padding:8px;border:1.5px solid rgba(147,52,233,.25);border-radius:8px;background:none;color:rgba(255,255,255,.5);font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;}
+    .img-tab.active{border-color:#9334e9;background:rgba(147,52,233,.15);color:#c084fc;}
+
+
+    /* ── RESPONSIVE / MOBILE ── */
+    @media(max-width:768px){
+      /* Sidebar becomes slide-in overlay */
+      .sidebar{transform:translateX(-100%);box-shadow:none;}
+      .sidebar.open{transform:translateX(0);box-shadow:8px 0 30px rgba(0,0,0,.6);}
+      /* Main fills full width */
+      .main{margin-left:0;}
+      /* Show hamburger */
+      .menu-btn{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:rgba(147,52,233,.15);}
+      /* Topbar compact */
+      .topbar{padding:12px 14px;}
+      .topbar-title{font-size:14px;}
+      .live-dot{display:none;}
+      /* Content padding */
+      .content{padding:14px 12px;}
+      /* Stats: 2 cols always */
+      .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:16px;}
+      .stat{padding:14px 10px;}
+      .stat-num{font-size:22px;}
+      .stat-ico{font-size:22px;margin-bottom:6px;}
+      /* Page headers stack */
+      .page-hdr{flex-direction:column!important;align-items:flex-start!important;gap:10px!important;}
+      .page-hdr h2{font-size:17px;}
+      .add-btn{width:100%;justify-content:center;padding:10px;}
+      /* Cards */
+      .card{margin-bottom:14px;border-radius:12px;}
+      .card-head{padding:12px 14px;font-size:12px;}
+      /* Tables: horizontal scroll with min widths */
+      .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+      table{min-width:500px;}
+      th,td{padding:9px 12px;font-size:12px;}
+      /* Modal fullscreen on small screens */
+      .modal-overlay{padding:0;align-items:flex-end;}
+      .modal{border-radius:20px 20px 0 0;max-height:92vh;padding:22px 18px;}
+      .form-row{grid-template-columns:1fr;}
+      /* Sidebar footer */
+      .sb-admin-info{font-size:10px;}
+    }
+
+    @media(max-width:380px){
+      .stats-grid{grid-template-columns:1fr 1fr;gap:8px;}
+      .stat-num{font-size:20px;}
+      .content{padding:12px 10px;}
+    }
+
+    #authLoader{position:fixed;inset:0;background:#0d0d1a;display:flex;align-items:center;justify-content:center;z-index:999;font-size:16px;color:rgba(255,255,255,.4);}
+  </style>
+</head>
+<body>
+
+<!-- ADD PRODUCT MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h3 id="modalTitle">➕ Add New Product</h3>
+    <p id="modalDesc">Product will be saved to Firebase and appear in the store.</p>
+    <div class="field">
+      <label>PRODUCT NAME *</label>
+      <input type="text" id="f-name" placeholder="e.g. Women's Cotton Kurti"/>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>PRICE (₹) *</label>
+        <input type="number" id="f-price" placeholder="399"/>
+      </div>
+      <div class="field">
+        <label>MRP / ORIGINAL (₹) *</label>
+        <input type="number" id="f-original" placeholder="999"/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>CATEGORY *</label>
+        <select id="f-category">
+          <option value="">Select category</option>
+          <option value="women">Women's</option>
+          <option value="men">Men's</option>
+          <option value="kids">Kids</option>
+          <option value="home">Home &amp; Kitchen</option>
+          <option value="electronics">Electronics</option>
+          <option value="beauty">Beauty</option>
+          <option value="bags">Bags &amp; Wallets</option>
+          <option value="jewellery">Jewellery</option>
+          <option value="footwear">Footwear</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>RATING (1-5)</label>
+        <input type="number" id="f-rating" placeholder="4.2" step="0.1" min="1" max="5"/>
+      </div>
+    </div>
+    <!-- IMAGE: tabs for Upload vs URL -->
+    <div class="field">
+      <label>PRODUCT IMAGE</label>
+      <div class="img-tabs">
+        <button type="button" class="img-tab active" id="tabUpload" onclick="switchImgTab('upload')">📁 Upload File</button>
+        <button type="button" class="img-tab" id="tabUrl" onclick="switchImgTab('url')">🔗 Image URL</button>
+      </div>
+      <!-- File Upload Panel -->
+      <div id="panelUpload">
+        <div class="img-upload-box" id="uploadBox">
+          <input type="file" id="f-imgFile" accept="image/*" onchange="onFileSelected(this)"/>
+          <div class="upload-icon">🖼️</div>
+          <div class="upload-text" id="uploadText">Tap to choose image<br/><strong>JPG, PNG, WEBP</strong> — auto compressed</div>
+        </div>
+        <img id="imgPreview" class="img-preview" alt="Preview"/>
+        <div class="upload-progress" id="uploadProgress">
+          <div class="upload-progress-bar" id="uploadProgressBar"></div>
+        </div>
+      </div>
+      <!-- URL Panel (hidden by default) -->
+      <div id="panelUrl" style="display:none">
+        <input type="url" id="f-image" placeholder="https://example.com/image.jpg"/>
+      </div>
+    </div>
+    <button class="btn-primary" id="saveProductBtn" onclick="saveProduct()">💾 Save Product</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-admin" id="adminToast"></div>
+<div id="authLoader">🔐 Verifying admin access…</div>
+
+<!-- Sidebar backdrop (mobile) -->
+<div class="sb-backdrop" id="sbBackdrop" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-logo">ALAN<span>WALKER</span><span class="sb-badge">⚡ Panel</span></div>
+  <nav class="sb-nav">
+    <div class="sb-item active" onclick="showSection('dashboard',this)"><span class="ico">📊</span> Dashboard</div>
+    <div class="sb-item" onclick="showSection('users',this)"><span class="ico">👥</span> Users</div>
+    <div class="sb-item" onclick="showSection('products',this)"><span class="ico">📦</span> Products</div>
+    <div class="sb-item" onclick="showSection('orders',this)"><span class="ico">🛒</span> Orders</div>
+    <div class="sb-item" onclick="showSection('settings',this)"><span class="ico">⚙️</span> Settings</div>
+  </nav>
+  <div class="sb-footer">
+    <div class="sb-admin-info" id="sbAdminEmail">Logged in as<br/><strong>123@gmail.com</strong></div>
+    <button class="sb-logout" onclick="adminLogout()">
+      <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Logout
+    </button>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <!-- Top Bar -->
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+    </div>
+    <div class="topbar-right">
+      <div class="live-dot"><span></span> Live</div>
+      <div class="admin-avatar">A</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ── DASHBOARD ── -->
+    <div class="section active" id="sec-dashboard">
+      <div class="page-hdr">
+        <h2>📊 Dashboard Overview</h2>
+        <p>Welcome back, Admin! Here's what's happening today.</p>
+      </div>
+      <div class="stats-grid">
+        <div class="stat s-purple"><div class="stat-ico">👥</div><div class="stat-num" id="st-users">—</div><div class="stat-lbl">Total Users</div></div>
+        <div class="stat s-gold"><div class="stat-ico">📦</div><div class="stat-num" id="st-products">22</div><div class="stat-lbl">Products</div></div>
+        <div class="stat s-green"><div class="stat-ico">🛒</div><div class="stat-num" id="st-orders">0</div><div class="stat-lbl">Orders</div></div>
+        <div class="stat s-red"><div class="stat-ico">💰</div><div class="stat-num" id="st-revenue">₹0</div><div class="stat-lbl">Revenue</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head">👥 Recent Users <span id="recentCount"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Joined</th></tr></thead>
+            <tbody id="recentUsers"><tr><td colspan="4" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── USERS ── -->
+    <div class="section" id="sec-users">
+      <div class="page-hdr">
+        <h2>👥 All Registered Users</h2>
+        <p>Users who signed up via Firebase Authentication.</p>
+      </div>
+      <div class="card">
+        <div class="card-head">Users List <span id="totalUsersCount"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Email</th><th>Joined</th><th>UID</th><th>Action</th></tr></thead>
+            <tbody id="allUsersTable"><tr><td colspan="6" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PRODUCTS ── -->
+    <div class="section" id="sec-products">
+      <div class="page-hdr" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div>
+          <h2>📦 All Products</h2>
+          <p id="prodSubtitle">Loading products…</p>
+        </div>
+        <button class="add-btn" onclick="openModal()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Product
+        </button>
+      </div>
+      <div class="card">
+        <div class="card-head">Product Catalog <span id="prodCount"></span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Category</th><th>Price</th><th>MRP</th><th>Rating</th><th>Image</th><th>Action</th></tr></thead>
+            <tbody id="productsTable"><tr><td colspan="8" class="empty-row">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ORDERS ── -->
+    <div class="section" id="sec-orders">
+      <div class="page-hdr">
+        <h2>🛒 Orders</h2>
+        <p>Order management coming soon.</p>
+      </div>
+      <div class="card">
+        <div class="card-head">Orders List</div>
+        <div style="padding:60px;text-align:center;color:rgba(255,255,255,.3);">
+          <div style="font-size:48px;margin-bottom:12px;">🛒</div>
+          <div style="font-size:15px;font-weight:600;">No orders yet</div>
+          <div style="font-size:13px;margin-top:6px;">Orders placed by users will appear here.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── SETTINGS ── -->
+    <div class="section" id="sec-settings">
+      <div class="page-hdr">
+        <h2>⚙️ Settings</h2>
+        <p>Admin panel configuration.</p>
+      </div>
+      <div class="card">
+        <div class="card-head">Admin Credentials</div>
+        <div style="padding:20px;display:flex;flex-direction:column;gap:14px;">
+          <div style="background:rgba(147,52,233,.1);border:1px solid rgba(147,52,233,.2);border-radius:10px;padding:14px 16px;">
+            <div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:4px;">Admin Email</div>
+            <div style="font-size:14px;font-weight:600;color:#c084fc;">123@gmail.com</div>
+          </div>
+          <div style="background:rgba(147,52,233,.1);border:1px solid rgba(147,52,233,.2);border-radius:10px;padding:14px 16px;">
+            <div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:4px;">Firebase Project</div>
+            <div style="font-size:14px;font-weight:600;color:#c084fc;">alan-walker-11b1f</div>
+          </div>
+          <div style="background:rgba(147,52,233,.1);border:1px solid rgba(147,52,233,.2);border-radius:10px;padding:14px 16px;">
+            <div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:4px;">Store Link</div>
+            <a href="index.html" style="font-size:14px;font-weight:600;color:#4ade80;text-decoration:none;">→ Go to Store</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- ── ADD PRODUCT MODAL ── -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <h3>➕ Add New Product</h3>
+    <p>Saved to Firebase — appears instantly in the store.</p>
+    <div class="field">
+      <label>PRODUCT NAME *</label>
+      <input type="text" id="f-name" placeholder="e.g. Women's Cotton Kurti"/>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>PRICE (₹) *</label>
+        <input type="number" id="f-price" placeholder="399"/>
+      </div>
+      <div class="field">
+        <label>MRP (₹) *</label>
+        <input type="number" id="f-original" placeholder="999"/>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="field">
+        <label>CATEGORY *</label>
+        <select id="f-category">
+          <option value="">Select…</option>
+          <option value="women">Women's</option>
+          <option value="men">Men's</option>
+          <option value="kids">Kids</option>
+          <option value="home">Home &amp; Kitchen</option>
+          <option value="electronics">Electronics</option>
+          <option value="beauty">Beauty</option>
+          <option value="bags">Bags &amp; Wallets</option>
+          <option value="jewellery">Jewellery</option>
+          <option value="footwear">Footwear</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>RATING (1–5)</label>
+        <input type="number" id="f-rating" placeholder="4.2" step="0.1" min="1" max="5"/>
+      </div>
+    </div>
+    <div class="field">
+      <label>IMAGE URL (optional)</label>
+      <input type="url" id="f-image" placeholder="https://…"/>
+    </div>
+    <button class="btn-primary" id="saveProductBtn" onclick="saveProduct()">💾 Save Product</button>
+  </div>
+</div>
+
+<!-- Toast notification -->
+<div class="toast-admin" id="adminToast"></div>
+
+<!-- ── USER DETAILS MODAL ── -->
+<div class="modal-overlay" id="userModalOverlay" onclick="closeUserModalOutside(event)">
+  <div class="modal" style="max-width: 400px;">
+    <button class="modal-close" onclick="closeUserModal()">✕</button>
+    <h3>👤 User Profile</h3>
+    <p>Detailed information from Firestore.</p>
+    
+    <div style="background:rgba(147,52,233,.05); border:1px solid rgba(147,52,233,.2); border-radius:12px; padding:18px; margin-bottom:16px;">
+      <div style="margin-bottom:12px;">
+        <span style="color:rgba(255,255,255,.4); font-size:10px; font-weight:700; letter-spacing:0.5px;">NAME</span>
+        <strong style="display:block; font-size:15px; color:#fff; margin-top:2px;" id="u-name">—</strong>
+      </div>
+      <div style="margin-bottom:12px;">
+        <span style="color:rgba(255,255,255,.4); font-size:10px; font-weight:700; letter-spacing:0.5px;">EMAIL ADDRESS</span>
+        <strong style="display:block; font-size:14px; color:#c084fc; margin-top:2px;" id="u-email">—</strong>
+      </div>
+      <div style="margin-bottom:12px;">
+        <span style="color:rgba(255,255,255,.4); font-size:10px; font-weight:700; letter-spacing:0.5px;">USER ID (UID)</span>
+        <strong style="display:block; font-size:11px; color:rgba(255,255,255,.6); margin-top:2px; word-break:break-all;" id="u-uid">—</strong>
+      </div>
+      <div class="form-row" style="margin-top:16px; padding-top:16px; border-top:1px solid rgba(255,255,255,.1);">
+        <div>
+          <span style="color:rgba(255,255,255,.4); font-size:10px; font-weight:700; letter-spacing:0.5px;">JOINED DATE</span>
+          <strong style="display:block; font-size:13px; color:#fff; margin-top:2px;" id="u-joined">—</strong>
+        </div>
+        <div>
+          <span style="color:rgba(255,255,255,.4); font-size:10px; font-weight:700; letter-spacing:0.5px; display:block; margin-bottom:4px;">ACCOUNT STATUS</span>
+          <span class="badge" style="background:rgba(74,222,128,.15); color:#4ade80;" id="u-status">Active</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="stats-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:0; gap:12px;">
+      <div class="stat s-purple" style="padding:14px;">
+        <div class="stat-lbl" style="margin-top:0; margin-bottom:6px;">Total Orders</div>
+        <div class="stat-num" style="font-size:22px;" id="u-orders">0</div>
+      </div>
+      <div class="stat s-green" style="padding:14px;">
+        <div class="stat-lbl" style="margin-top:0; margin-bottom:6px;">Total Spent</div>
+        <div class="stat-num" style="font-size:22px;" id="u-spent">₹0</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── PRODUCT DATA (same as app.js) ──────────────────────────────────────────
+const products = [
+  {id:1,name:"Women's Ethnic Printed Cotton Kurti",price:399,original:999,category:"women",rating:4.2,reviews:128},
+  {id:2,name:"Beautiful Silk Saree Red and Gold",price:899,original:2499,category:"women",rating:4.5,reviews:342},
+  {id:3,name:"Women's Trendy Handbag Tan Brown",price:449,original:1299,category:"bags",rating:4.0,reviews:89},
+  {id:4,name:"Traditional Jhumka Earrings Gold Tone",price:199,original:499,category:"jewellery",rating:4.7,reviews:512},
+  {id:5,name:"Men's Casual Round Neck Cotton T-Shirt",price:299,original:799,category:"men",rating:4.1,reviews:215},
+  {id:6,name:"Men's Slim Fit Casual Shirt Checkered",price:499,original:1499,category:"men",rating:3.9,reviews:76},
+  {id:7,name:"Men's Stylish Denim Jeans Blue",price:799,original:1999,category:"men",rating:4.3,reviews:154},
+  {id:8,name:"White Casual Sneakers Sports Shoes",price:599,original:1599,category:"footwear",rating:4.4,reviews:298},
+  {id:9,name:"Cotton Double Bedsheet with 2 Pillow Covers",price:349,original:999,category:"home",rating:4.6,reviews:421},
+  {id:10,name:"Set of 6 Glass Tumblers 300ml",price:249,original:599,category:"home",rating:4.0,reviews:65},
+  {id:11,name:"Wireless Bluetooth Earbuds with Mic",price:899,original:2999,category:"electronics",rating:4.2,reviews:876},
+  {id:12,name:"Smart Watch with Heart Rate Monitor",price:1299,original:3999,category:"electronics",rating:3.8,reviews:112},
+  {id:13,name:"Kids Boys Printed T-Shirt & Shorts Set",price:399,original:899,category:"kids",rating:4.5,reviews:134},
+  {id:14,name:"Matte Liquid Lipstick Long Lasting",price:149,original:399,category:"beauty",rating:4.1,reviews:345},
+  {id:15,name:"Gold Plated Necklace with Pendant",price:349,original:899,category:"jewellery",rating:4.6,reviews:203},
+  {id:16,name:"Women's Floral Printed Chiffon Dupatta",price:179,original:499,category:"women",rating:4.3,reviews:89},
+  {id:17,name:"Men's Running Sports Shoes Black",price:899,original:2499,category:"footwear",rating:4.5,reviews:412},
+  {id:18,name:"Stainless Steel Water Bottle 1L",price:299,original:699,category:"home",rating:4.4,reviews:567},
+  {id:19,name:"Wireless Charging Pad 15W Fast Charge",price:699,original:1799,category:"electronics",rating:4.1,reviews:234},
+  {id:20,name:"Kids Girls Frock Dress Floral Print",price:449,original:999,category:"kids",rating:4.7,reviews:178},
+  {id:21,name:"Face Wash Brightening Vitamin C 100ml",price:199,original:499,category:"beauty",rating:4.2,reviews:621},
+  {id:22,name:"Leather Bifold Wallet Men's Brown",price:399,original:999,category:"bags",rating:4.3,reviews:145}
+];
+
+const ADMIN_EMAIL = '123@gmail.com';
+
+// ── AUTH GUARD ──────────────────────────────────────────────────────────────
+auth.onAuthStateChanged(user => {
+  if (!user || user.email.toLowerCase() !== ADMIN_EMAIL) {
+    window.location.href = 'index.html';
+    return;
+  }
+  document.getElementById('authLoader').style.display = 'none';
+  loadDashboard();
+  loadProducts();
+});
+
+// ── SECTION NAVIGATION ──────────────────────────────────────────────────────
+const titles = {dashboard:'Dashboard',users:'Users',products:'Products',orders:'Orders',settings:'Settings'};
+function showSection(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.sb-item').forEach(i => i.classList.remove('active'));
+  document.getElementById('sec-' + id).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('topbarTitle').textContent = titles[id];
+  if (id === 'users') loadAllUsers();
+  closeSidebar(); // close sidebar + backdrop on mobile
+}
+
+function toggleSidebar() {
+  const sidebar  = document.getElementById('sidebar');
+  const backdrop = document.getElementById('sbBackdrop');
+  sidebar.classList.toggle('open');
+  backdrop.classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sbBackdrop').classList.remove('open');
+}
+
+// ── LOAD DASHBOARD (Firestore) ──────────────────────────────────────────────
+function loadDashboard() {
+  document.getElementById('st-products').textContent = products.length;
+  firestore.collection('users').get().then(snap => {
+    const list = snap.docs;
+    document.getElementById('st-users').textContent = list.length;
+    document.getElementById('recentCount').textContent = list.length + ' total';
+    const recent = list.slice(-5).reverse();
+    const tbody = document.getElementById('recentUsers');
+    if (!recent.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty-row">No users yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = recent.map((doc, i) => {
+      const u = doc.data();
+      return `<tr>
+        <td style="color:rgba(255,255,255,.4)">${i+1}</td>
+        <td>${u.name||'—'}</td>
+        <td style="color:#a78bfa">${u.email}</td>
+        <td style="color:rgba(255,255,255,.5)">${u.createdAt?new Date(u.createdAt).toLocaleDateString('en-IN'):'—'}</td>
+      </tr>`;
+    }).join('');
+  }).catch(() => {
+    document.getElementById('recentUsers').innerHTML = '<tr><td colspan="4" class="empty-row">⚠️ Could not load users</td></tr>';
+  });
+}
+
+// ── LOAD ALL USERS (Firestore) ──────────────────────────────────────────────
+window.allUsersData = {}; // Store users globally to view details
+
+function loadAllUsers() {
+  const tbody = document.getElementById('allUsersTable');
+  tbody.innerHTML = '<tr><td colspan="6" class="empty-row">Loading…</td></tr>';
+  firestore.collection('users').orderBy('createdAt', 'desc').get().then(snap => {
+    const list = snap.docs;
+    document.getElementById('totalUsersCount').textContent = list.length + ' users';
+    if (!list.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-row">No registered users yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = list.map((doc, i) => {
+      const u = doc.data();
+      window.allUsersData[doc.id] = u; // Cache data for modal
+      return `<tr>
+        <td style="color:rgba(255,255,255,.4)">${i+1}</td>
+        <td>${u.name||'—'}</td>
+        <td style="color:#a78bfa">${u.email}</td>
+        <td style="color:rgba(255,255,255,.5)">${u.createdAt?new Date(u.createdAt).toLocaleDateString('en-IN'):'—'}</td>
+        <td style="color:rgba(255,255,255,.25);font-size:11px">${doc.id.slice(0,12)}…</td>
+        <td><button class="add-btn" style="padding:5px 12px; font-size:11px;" onclick="viewUserDetails('${doc.id}')">View</button></td>
+      </tr>`;
+    }).join('');
+  }).catch(() => {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-row">⚠️ Failed to load users</td></tr>';
+  });
+}
+
+// ── VIEW USER DETAILS ────────────────────────────────────────────────────────
+function viewUserDetails(uid) {
+  const u = window.allUsersData[uid];
+  if (!u) return;
+  
+  document.getElementById('u-name').textContent = u.name || '—';
+  document.getElementById('u-email').textContent = u.email || '—';
+  document.getElementById('u-uid').textContent = u.uid || uid;
+  document.getElementById('u-joined').textContent = u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN') : '—';
+  document.getElementById('u-status').textContent = u.status || 'Active';
+  document.getElementById('u-orders').textContent = u.orders || 0;
+  document.getElementById('u-spent').textContent = '₹' + (u.totalSpent || 0);
+  
+  document.getElementById('userModalOverlay').classList.add('open');
+}
+
+function closeUserModal() { document.getElementById('userModalOverlay').classList.remove('open'); }
+function closeUserModalOutside(e) { if (e.target.id === 'userModalOverlay') closeUserModal(); }
+
+// ── PRODUCTS: LOAD FROM FIRESTORE (real-time) ────────────────────────────────
+window.allProductsData = {}; // Cache products for editing
+function loadProducts() {
+  firestore.collection('products').onSnapshot(snap => {
+    const tbody = document.getElementById('productsTable');
+    const fbList = snap.docs.map(doc => ({...doc.data(), fbKey: doc.id}));
+    const allProds = [...products.map(p => ({...p, fbKey: null})), ...fbList];
+
+    // Cache Firebase products
+    window.allProductsData = {};
+    fbList.forEach(p => { window.allProductsData[p.fbKey] = p; });
+
+    document.getElementById('prodCount').textContent = allProds.length + ' items';
+    document.getElementById('prodSubtitle').textContent = allProds.length + ' products in catalog.';
+    document.getElementById('st-products').textContent = allProds.length;
+
+    tbody.innerHTML = allProds.map((p, i) => {
+      const imgCell = p.image
+        ? (p.image.startsWith('data:') ? '<span style="color:#4ade80;font-size:11px">✅ Uploaded</span>' : `<a href="${p.image}" target="_blank" style="color:#7c3aed;font-size:11px;">View</a>`)
+        : '<span style="color:rgba(255,255,255,.2)">—</span>';
+      const actionCell = p.fbKey
+        ? `<div style="display:flex;gap:4px;"><button class="add-btn" style="padding:4px 8px;font-size:11px;background:rgba(147,52,233,.2);color:#c084fc;border:none;" onclick="editProduct('${p.fbKey}')" title="Edit">✏️</button><button class="del-btn" style="padding:4px 8px;font-size:11px;" onclick="deleteProduct('${p.fbKey}')" title="Delete">🗑</button></div>`
+        : '<span style="color:rgba(255,255,255,.15);font-size:11px">built-in</span>';
+      return `<tr>
+        <td style="color:rgba(255,255,255,.4)">${i+1}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis">${p.name}</td>
+        <td><span class="badge">${p.category}</span></td>
+        <td class="price">₹${p.price}</td>
+        <td style="color:rgba(255,255,255,.4);text-decoration:line-through">₹${p.original||'—'}</td>
+        <td class="rating">${p.rating||'—'} ⭐</td>
+        <td>${imgCell}</td>
+        <td>${actionCell}</td>
+      </tr>`;
+    }).join('');
+  }, () => {
+    document.getElementById('productsTable').innerHTML = '<tr><td colspan="8" class="empty-row">⚠️ Failed to load products</td></tr>';
+  });
+}
+
+// ── MODAL ────────────────────────────────────────────────────────────────────
+let editingProductId = null;
+
+function openModal() {
+  editingProductId = null;
+  document.getElementById('modalTitle').textContent = '📦 Add New Product';
+  document.getElementById('saveProductBtn').textContent = '💾 Save Product';
+  clearForm();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function editProduct(key) {
+  try {
+    const p = window.allProductsData[key];
+    if (!p) { showAdminToast('⚠️ Product not found'); return; }
+    
+    editingProductId = key;
+    document.getElementById('modalTitle').textContent = '✏️ Edit Product';
+    document.getElementById('saveProductBtn').textContent = '💾 Update Product';
+    clearForm();
+    
+    document.getElementById('f-name').value = p.name || '';
+    document.getElementById('f-price').value = p.price || '';
+    document.getElementById('f-original').value = p.original || '';
+    document.getElementById('f-category').value = p.category || '';
+    document.getElementById('f-rating').value = p.rating || '';
+    
+    if (p.image && typeof p.image === 'string') {
+      if (p.image.startsWith('data:')) {
+        switchImgTab('upload');
+        compressedBase64 = p.image;
+        const prev = document.getElementById('imgPreview');
+        prev.src = p.image;
+        prev.style.display = 'block';
+      } else {
+        switchImgTab('url');
+        document.getElementById('f-image').value = p.image;
+      }
+    }
+    
+    document.getElementById('modalOverlay').classList.add('open');
+  } catch (err) {
+    showAdminToast('❌ Error opening edit: ' + err.message);
+    console.error(err);
+  }
+}
+
+function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); editingProductId = null; clearForm(); }
+function closeModalOutside(e) { if (e.target.id === 'modalOverlay') closeModal(); }
+function clearForm() {
+  ['f-name','f-price','f-original','f-category','f-rating','f-image'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const fileEl = document.getElementById('f-imgFile');
+  if (fileEl) fileEl.value = '';
+  const prev = document.getElementById('imgPreview');
+  if (prev) { prev.style.display = 'none'; prev.src = ''; }
+  const prog = document.getElementById('uploadProgress');
+  if (prog) prog.style.display = 'none';
+  document.getElementById('uploadProgressBar').style.width = '0%';
+  compressedBase64 = null;
+  const textEl = document.getElementById('uploadText');
+  if (textEl) textEl.innerHTML = 'Tap to choose image<br/><strong>JPG, PNG, WEBP</strong> — auto compressed';
+  switchImgTab('upload'); // reset to upload tab
+}
+
+// Image tab switcher
+function switchImgTab(tab) {
+  document.getElementById('tabUpload').classList.toggle('active', tab === 'upload');
+  document.getElementById('tabUrl').classList.toggle('active', tab === 'url');
+  document.getElementById('panelUpload').style.display = tab === 'upload' ? 'block' : 'none';
+  document.getElementById('panelUrl').style.display   = tab === 'url'    ? 'block' : 'none';
+}
+
+// Show preview + compress to base64 when file selected
+let compressedBase64 = null; // global compressed image
+
+function onFileSelected(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      // Resize to max 600px keeping aspect ratio
+      const MAX = 600;
+      let w = img.width, h = img.height;
+      if (w > h && w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+      else if (h > MAX)     { w = Math.round(w * MAX / h); h = MAX; }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      compressedBase64 = canvas.toDataURL('image/jpeg', 0.75);
+
+      // Show preview
+      const prev = document.getElementById('imgPreview');
+      prev.src = compressedBase64;
+      prev.style.display = 'block';
+
+      // Show size info
+      const kb = Math.round(compressedBase64.length * 0.75 / 1024);
+      document.getElementById('uploadText').innerHTML =
+        `✅ Ready — <strong>${w}×${h}px, ~${kb} KB</strong>`;
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── SAVE PRODUCT (base64 image, no Storage needed) ─────────────────────
+function saveProduct() {
+  try {
+    const name     = document.getElementById('f-name').value.trim();
+    const price    = parseFloat(document.getElementById('f-price').value);
+    const original = parseFloat(document.getElementById('f-original').value);
+    const category = document.getElementById('f-category').value;
+    const rating   = parseFloat(document.getElementById('f-rating').value) || 4.0;
+
+    if (!name)              { showAdminToast('⚠️ Product name is required'); return; }
+    if (!price || price<=0) { showAdminToast('⚠️ Enter a valid price'); return; }
+    if (!original||original<=0){showAdminToast('⚠️ Enter a valid MRP');return;}
+    if (!category)          { showAdminToast('⚠️ Select a category'); return; }
+    if (price >= original)  { showAdminToast('⚠️ Price must be less than MRP'); return; }
+
+    const isUploadTab = document.getElementById('tabUpload').classList.contains('active');
+    const urlVal      = !isUploadTab ? (document.getElementById('f-image').value.trim()) : '';
+    
+    // If editing and no new file was uploaded but we have an old base64 image showing in preview, keep it.
+    let imageData = '';
+    if (isUploadTab) {
+        if (compressedBase64) imageData = compressedBase64;
+        // If editing and there's no new compressed image but the preview is showing the old data URL, use that.
+        else if (editingProductId && document.getElementById('imgPreview').style.display !== 'none') {
+            imageData = document.getElementById('imgPreview').src;
+        }
+    } else {
+        imageData = urlVal;
+    }
+
+    const btn = document.getElementById('saveProductBtn');
+    btn.disabled = true; btn.textContent = editingProductId ? 'Updating…' : 'Saving…';
+
+    const productData = {name, price, original, category, rating, image: imageData};
+    if (editingProductId) {
+      updateProduct(editingProductId, productData, btn);
+    } else {
+      persistProduct(productData, btn);
+    }
+  } catch (err) {
+    showAdminToast('❌ Save Error: ' + err.message);
+    console.error(err);
+  }
+}
+
+function updateProduct(key, data, btn) {
+  firestore.collection('products').doc(key).update({...data, updatedAt: Date.now()})
+    .then(() => { showAdminToast('✅ Product updated!'); closeModal(); })
+    .catch(err => showAdminToast('❌ ' + err.message))
+    .finally(() => { btn.disabled=false; btn.textContent='💾 Update Product'; });
+}
+
+function persistProduct(data, btn) {
+  firestore.collection('products').add({...data, addedAt: Date.now()})
+    .then(() => { showAdminToast('✅ Product added!'); closeModal(); })
+    .catch(err => showAdminToast('❌ ' + err.message))
+    .finally(() => { btn.disabled=false; btn.textContent='💾 Save Product'; });
+}
+
+// ── DELETE PRODUCT FROM FIRESTORE ──────────────────────────────────────────
+function deleteProduct(key) {
+  if (!confirm('Delete this product?')) return;
+  firestore.collection('products').doc(key).delete()
+    .then(() => showAdminToast('🗑 Product deleted'))
+    .catch(err => showAdminToast('❌ ' + err.message));
+}
+
+// ── TOAST ────────────────────────────────────────────────────────────────────
+function showAdminToast(msg) {
+  const t = document.getElementById('adminToast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── LOGOUT ──────────────────────────────────────────────────────────────────
+function adminLogout() {
+  auth.signOut().then(() => { window.location.href = 'index.html'; });
+}
+</script>
+</body>
+</html>

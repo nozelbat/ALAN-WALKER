@@ -1,8 +1,8 @@
 // PRODUCT DATA
 const products = [
   // WOMEN
-  { id: 1, name: "Women's Ethnic Printed Cotton Kurti", price: 399, original: 999, category: "women", image: "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=500&q=80", rating: 4.2, reviews: 128 },
-  { id: 2, name: "Beautiful Silk Saree Red and Gold", price: 899, original: 2499, category: "women", image: "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=500&q=80", rating: 4.5, reviews: 342 },
+  { id: 1, name: "Women's Ethnic Printed Cotton Kurti", price: 399, original: 999, category: "women", image: "currency1.png", rating: 4.2, reviews: 128 },
+  { id: 2, name: "Beautiful Silk Saree Red and Gold", price: 899, original: 2499, category: "women", image: "currency2.png", rating: 4.5, reviews: 342 },
   { id: 3, name: "Women's Trendy Handbag Tan Brown", price: 449, original: 1299, category: "bags", image: "https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=500&q=80", rating: 4.0, reviews: 89 },
   { id: 4, name: "Traditional Jhumka Earrings Gold Tone", price: 199, original: 499, category: "jewellery", image: "https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=500&q=80", rating: 4.7, reviews: 512 },
   // MEN
@@ -18,7 +18,7 @@ const products = [
   { id: 13, name: "Kids Boys Printed T-Shirt & Shorts Set", price: 399, original: 899, category: "kids", image: "https://images.unsplash.com/photo-1604671801908-6f0c6a092c05?w=500&q=80", rating: 4.5, reviews: 134 },
   { id: 14, name: "Matte Liquid Lipstick Long Lasting", price: 149, original: 399, category: "beauty", image: "https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=500&q=80", rating: 4.1, reviews: 345 },
   { id: 15, name: "Gold Plated Necklace with Pendant", price: 349, original: 899, category: "jewellery", image: "https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=500&q=80", rating: 4.6, reviews: 203 },
-  { id: 16, name: "Women's Floral Printed Chiffon Dupatta", price: 179, original: 499, category: "women", image: "https://images.unsplash.com/photo-1504198458649-3128b932f49e?w=500&q=80", rating: 4.3, reviews: 89 },
+  { id: 16, name: "Women's Floral Printed Chiffon Dupatta", price: 179, original: 499, category: "women", image: "currency1.png", rating: 4.3, reviews: 89 },
   { id: 17, name: "Men's Running Sports Shoes Black", price: 899, original: 2499, category: "footwear", image: "https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=500&q=80", rating: 4.5, reviews: 412 },
   { id: 18, name: "Stainless Steel Water Bottle 1L", price: 299, original: 699, category: "home", image: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=500&q=80", rating: 4.4, reviews: 567 },
   { id: 19, name: "Wireless Charging Pad 15W Fast Charge", price: 699, original: 1799, category: "electronics", image: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=500&q=80", rating: 4.1, reviews: 234 },
@@ -29,18 +29,48 @@ const products = [
 
 let cart = [];
 let currentFilter = 'all';
+let allStoreProducts = [...products];
 
 // INITIALIZATION
 document.addEventListener('DOMContentLoaded', () => {
+  // Load static products first for instant render
   renderProducts(products, 'productsGrid');
-  
-  // Render Deals (first 4 items for demo)
-  const deals = products.slice(0, 4);
-  renderProducts(deals, 'dealsGrid');
-  
+  renderProducts(products.slice(0, 4), 'dealsGrid');
+
+  // Then merge with admin-added products from Firestore
+  firestore.collection('products').onSnapshot(snap => {
+    const fbProds = snap.docs.map(doc => ({ ...doc.data(), id: doc.id, reviews: doc.data().reviews || 0 }));
+    allStoreProducts = [...products, ...fbProds];
+    renderProducts(allStoreProducts, 'productsGrid');
+    renderProducts(allStoreProducts.slice(0, 4), 'dealsGrid');
+  });
+
   startTimer();
   setupBannerSlider();
+
+  // Start on login page — hide home, show login
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-login').classList.add('active');
+  toggleAppChrome(false); // hide header/nav on initial load
 });
+
+
+// TOGGLE HEADER / BOTTOM-NAV / CART (hide on auth pages)
+function toggleAppChrome(show) {
+  const header     = document.querySelector('.header');
+  const bottomNav  = document.querySelector('.bottom-nav');
+  const cartOverlay = document.getElementById('cartOverlay');
+  const cartDrawer  = document.getElementById('cartDrawer');
+  const toast       = document.getElementById('toast');
+  [header, bottomNav].forEach(el => {
+    if (el) el.style.display = show ? '' : 'none';
+  });
+  // Make sure cart is closed when hiding
+  if (!show) {
+    cartOverlay && cartOverlay.classList.remove('open');
+    cartDrawer  && cartDrawer.classList.remove('open');
+  }
+}
 
 // SPA ROUTING
 function switchPage(pageId) {
@@ -49,30 +79,57 @@ function switchPage(pageId) {
   // Show target page
   document.getElementById('page-' + pageId).classList.add('active');
   
-  // Update bottom nav (auth pages have no nav item - skip safely)
+  // Show header & bottom nav
+  toggleAppChrome(true);
+  
+  // Update bottom nav
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   const navEl = document.getElementById('nav-' + pageId);
   if (navEl) navEl.classList.add('active');
   
   // Scroll to top
   window.scrollTo(0, 0);
+
+  // Load orders if navigating to orders page
+  if (pageId === 'orders') loadOrders();
 }
 
-// AUTH PAGE ROUTING (login / signup - no bottom nav highlight)
+// AUTH PAGE ROUTING (login / signup - no bottom nav, no header)
 function switchAuthPage(pageId) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + pageId).classList.add('active');
-  // Keep Account nav highlighted
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const accountNav = document.getElementById('nav-account');
-  if (accountNav) accountNav.classList.add('active');
+  // Hide header & bottom nav on auth pages
+  toggleAppChrome(false);
   window.scrollTo(0, 0);
 }
 
-// LOGIN HANDLER
+const ADMIN_EMAIL = '123@gmail.com';
+function isAdminUser(email) { return email && email.toLowerCase() === ADMIN_EMAIL; }
+
+// ─── FIREBASE AUTH STATE OBSERVER ───────────────────────────────────────────
+// If user is already signed-in (persisted session), skip login and go to correct page.
+auth.onAuthStateChanged(user => {
+  if (user) {
+    if (isAdminUser(user.email)) {
+      window.location.href = 'admin.html';
+      return;
+    }
+    db.ref('users/' + user.uid).once('value').then(snap => {
+      const data = snap.val();
+      const name = (data && data.name) ? data.name
+                                       : (user.displayName || user.email.split('@')[0]);
+      updateAccountGreeting(name, user.email);
+      updateLogoutButton(true);
+    });
+    switchPage('home');
+  }
+  // else: login page is already shown by DOMContentLoaded
+});
+
+// LOGIN HANDLER — Firebase signInWithEmailAndPassword
 function handleLogin(e) {
   e.preventDefault();
-  const btn = document.getElementById('loginBtn');
+  const btn   = document.getElementById('loginBtn');
   const email = document.getElementById('loginEmail').value.trim();
   const pass  = document.getElementById('loginPassword').value;
 
@@ -82,23 +139,43 @@ function handleLogin(e) {
   btn.style.opacity = '0.8';
   btn.disabled = true;
 
-  setTimeout(() => {
-    btn.textContent = 'Login';
-    btn.style.opacity = '1';
-    btn.disabled = false;
-    showToast('✅ Logged in successfully!');
-    switchPage('home');
-  }, 1400);
+  auth.signInWithEmailAndPassword(email, pass)
+    .then(cred => {
+      const user = cred.user;
+      // ── ADMIN CHECK ──
+      if (isAdminUser(user.email)) {
+        showToast('⚡ Redirecting to Admin Panel…');
+        setTimeout(() => { window.location.href = 'admin.html'; }, 800);
+        return;
+      }
+      // ── REGULAR USER ──
+      return db.ref('users/' + user.uid).once('value').then(snap => {
+        const data = snap.val();
+        const name = (data && data.name) ? data.name : email.split('@')[0];
+        updateAccountGreeting(name, user.email);
+        updateLogoutButton(true);
+        showToast('✅ Welcome back, ' + name.split(' ')[0] + '!');
+        switchPage('home');
+      });
+    })
+    .catch(err => {
+      showToast('❌ ' + friendlyAuthError(err.code));
+    })
+    .finally(() => {
+      btn.textContent = 'Login';
+      btn.style.opacity = '1';
+      btn.disabled = false;
+    });
 }
 
-// SIGNUP HANDLER
+// SIGNUP HANDLER — Firebase createUserWithEmailAndPassword + save to Realtime DB
 function handleSignup(e) {
   e.preventDefault();
-  const btn      = document.getElementById('signupBtn');
-  const name     = document.getElementById('signupName').value.trim();
-  const email    = document.getElementById('signupEmail').value.trim();
-  const pass     = document.getElementById('signupPassword').value;
-  const confirm  = document.getElementById('signupConfirm').value;
+  const btn     = document.getElementById('signupBtn');
+  const name    = document.getElementById('signupName').value.trim();
+  const email   = document.getElementById('signupEmail').value.trim();
+  const pass    = document.getElementById('signupPassword').value;
+  const confirm = document.getElementById('signupConfirm').value;
 
   if (!name || !email || !pass || !confirm) { showToast('Please fill in all fields'); return; }
   if (pass !== confirm) { showToast('❌ Passwords do not match'); return; }
@@ -108,13 +185,143 @@ function handleSignup(e) {
   btn.style.opacity = '0.8';
   btn.disabled = true;
 
-  setTimeout(() => {
-    btn.textContent = 'Create Account';
-    btn.style.opacity = '1';
-    btn.disabled = false;
-    showToast('🎉 Account created! Welcome, ' + name.split(' ')[0] + '!');
-    switchPage('home');
-  }, 1600);
+  auth.createUserWithEmailAndPassword(email, pass)
+    .then(cred => {
+      const user = cred.user;
+      const profileData = {
+        name:       name,
+        email:      user.email,
+        uid:        user.uid,
+        createdAt:  Date.now(),
+        status:     'active',
+        orders:     0,
+        totalSpent: 0
+      };
+      // Save to Firestore (primary — for admin panel)
+      const fsWrite = firestore.collection('users').doc(user.uid).set(profileData);
+      // Save to Realtime DB (legacy backup)
+      const rtWrite = db.ref('users/' + user.uid).set(profileData);
+      return Promise.all([fsWrite, rtWrite]).then(() => {
+        updateAccountGreeting(name, user.email);
+        updateLogoutButton(true);
+        showToast('🎉 Welcome, ' + name.split(' ')[0] + '! Account created!');
+        switchPage('home');
+      });
+    })
+    .catch(err => {
+      showToast('❌ ' + friendlyAuthError(err.code));
+    })
+    .finally(() => {
+      btn.textContent = 'Create Account';
+      btn.style.opacity = '1';
+      btn.disabled = false;
+    });
+}
+
+// LOGOUT
+function handleLogout() {
+  auth.signOut().then(() => {
+    updateAccountGreeting('Guest', 'Login to see your profile');
+    updateLogoutButton(false);
+    showToast('👋 Logged out successfully');
+    switchAuthPage('login');
+  });
+}
+
+// GUEST CONTINUE
+function continueAsGuest() {
+  updateAccountGreeting('Guest', 'Login to see your profile');
+  updateLogoutButton(false);
+  switchPage('home');
+  showToast('Browsing as Guest');
+}
+
+// ─── ADMIN PANEL FUNCTIONS ───────────────────────────────────────────────────
+function goToAdmin() {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-admin').classList.add('active');
+  toggleAppChrome(false); // hide header & bottom nav
+  window.scrollTo(0, 0);
+  loadAdminPanel();
+}
+
+function loadAdminPanel() {
+  // Update products count stat
+  document.getElementById('statProducts').textContent = products.length;
+
+  // Populate products table
+  const prodTbody = document.getElementById('adminProductsTable');
+  if (prodTbody) {
+    prodTbody.innerHTML = products.map((p, i) => `
+      <tr>
+        <td style="color:rgba(255,255,255,0.4)">${i + 1}</td>
+        <td>${p.name}</td>
+        <td><span class="admin-category-badge">${p.category}</span></td>
+        <td class="admin-price">₹${p.price}</td>
+        <td class="admin-rating">${p.rating} ⭐</td>
+      </tr>
+    `).join('');
+  }
+
+  // Fetch users from Firebase Realtime Database
+  const usersTbody = document.getElementById('adminUsersTable');
+  const statUsersEl = document.getElementById('statUsers');
+
+  db.ref('users').once('value').then(snap => {
+    const data = snap.val();
+    if (!data) {
+      if (usersTbody) usersTbody.innerHTML = '<tr><td colspan="4" class="admin-table-loading">No registered users yet</td></tr>';
+      if (statUsersEl) statUsersEl.textContent = '0';
+      return;
+    }
+    const usersList = Object.entries(data);
+    if (statUsersEl) statUsersEl.textContent = usersList.length;
+    if (usersTbody) {
+      usersTbody.innerHTML = usersList.map(([uid, u], i) => `
+        <tr>
+          <td style="color:rgba(255,255,255,0.4)">${i + 1}</td>
+          <td>${u.name || '—'}</td>
+          <td style="color:#a78bfa">${u.email}</td>
+          <td style="color:rgba(255,255,255,0.5)">${u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-IN') : '—'}</td>
+        </tr>
+      `).join('');
+    }
+  }).catch(() => {
+    if (usersTbody) usersTbody.innerHTML = '<tr><td colspan="4" class="admin-table-loading">⚠️ Could not load users</td></tr>';
+  });
+}
+
+// UPDATE ACCOUNT PAGE GREETING
+function updateAccountGreeting(name, sub) {
+  const nameEl = document.querySelector('.account-name');
+  const subEl  = document.querySelector('.account-phone');
+  const avatar = document.querySelector('.avatar');
+  if (nameEl) nameEl.textContent = 'Hello, ' + name + '!';
+  if (subEl)  subEl.textContent  = sub;
+  if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
+}
+
+// SHOW / HIDE LOGOUT BUTTON IN ACCOUNT MENU
+function updateLogoutButton(loggedIn) {
+  const loginItem  = document.getElementById('accountLoginItem');
+  const logoutItem = document.getElementById('accountLogoutItem');
+  if (loginItem)  loginItem.style.display  = loggedIn ? 'none' : '';
+  if (logoutItem) logoutItem.style.display = loggedIn ? ''     : 'none';
+}
+
+// FIREBASE ERROR CODE → FRIENDLY MESSAGE
+function friendlyAuthError(code) {
+  const map = {
+    'auth/user-not-found':        'No account found with this email.',
+    'auth/wrong-password':        'Incorrect password. Please try again.',
+    'auth/invalid-email':         'Please enter a valid email address.',
+    'auth/email-already-in-use':  'An account with this email already exists.',
+    'auth/weak-password':         'Password must be at least 6 characters.',
+    'auth/too-many-requests':     'Too many attempts. Please try again later.',
+    'auth/invalid-credential':    'Invalid email or password.',
+    'auth/network-request-failed':'Network error. Check your connection.',
+  };
+  return map[code] || 'Something went wrong. Please try again.';
 }
 
 // TOGGLE PASSWORD VISIBILITY
@@ -218,7 +425,7 @@ function toggleCart() {
 }
 
 function addToCart(productId, btnElement) {
-  const product = products.find(p => p.id === productId);
+  const product = allStoreProducts.find(p => p.id === productId);
   if (!product) return;
   
   const existingItem = cart.find(item => item.id === productId);
@@ -326,20 +533,313 @@ function updateAllButtons() {
   filterProducts();
 }
 
-function confirmOrder() {
+// ─── RAZORPAY KEY ──────────────────────────────────────────────────────────────
+// ⚠️  Replace this with YOUR Razorpay key from https://dashboard.razorpay.com
+const RAZORPAY_KEY_ID = 'rzp_test_ShD1454CTNXCnt';
+
+// ─── CHECKOUT PAGE ─────────────────────────────────────────────────────────────
+function goToCheckout() {
   if (cart.length === 0) {
     showToast('Your cart is empty!');
     return;
   }
-  toggleCart(); // Close cart
-  showToast('Processing order...');
-  setTimeout(() => {
-    showToast('Order confirmed! Tracking info sent.');
-    cart = [];
-    updateCartBadge();
-    updateAllButtons();
-    // In a real app, we'd navigate to an order success page here
-  }, 1500);
+  toggleCart(); // Close cart drawer
+
+  // Navigate to checkout page
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-checkout').classList.add('active');
+  toggleAppChrome(false);
+  window.scrollTo(0, 0);
+
+  // Pre-fill user info if logged in
+  const user = auth.currentUser;
+  if (user) {
+    db.ref('users/' + user.uid).once('value').then(snap => {
+      const data = snap.val();
+      if (data) {
+        const nameEl = document.getElementById('checkoutName');
+        const emailEl = document.getElementById('checkoutEmail');
+        if (nameEl && !nameEl.value) nameEl.value = data.name || '';
+        if (emailEl && !emailEl.value) emailEl.value = data.email || user.email || '';
+      }
+    });
+  }
+
+  // Reset step UI
+  document.getElementById('checkoutStep1').style.display = '';
+  document.getElementById('checkoutStep3').style.display = 'none';
+  document.getElementById('step1Indicator').classList.add('active');
+  document.getElementById('step2Indicator').classList.remove('active', 'completed');
+  document.getElementById('step3Indicator').classList.remove('active', 'completed');
+
+  renderCheckoutSummary();
+}
+
+function renderCheckoutSummary() {
+  const container = document.getElementById('checkoutItems');
+  let subtotal = 0;
+  let originalTotal = 0;
+
+  container.innerHTML = cart.map(item => {
+    const itemTotal = item.price * item.qty;
+    subtotal += itemTotal;
+    originalTotal += item.original * item.qty;
+    return `
+      <div class="checkout-item">
+        <img src="${item.image}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/80x100?text=Product'" />
+        <div class="checkout-item-info">
+          <div class="checkout-item-name">${item.name}</div>
+          <div class="checkout-item-qty">Qty: ${item.qty}</div>
+          <div class="checkout-item-price">₹${item.price} <span class="checkout-item-original">₹${item.original}</span></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const savings = originalTotal - subtotal;
+  document.getElementById('checkoutSubtotal').textContent = '₹' + subtotal.toLocaleString('en-IN');
+  document.getElementById('checkoutTotal').textContent = '₹' + subtotal.toLocaleString('en-IN');
+  document.getElementById('checkoutSavings').textContent = '₹' + savings.toLocaleString('en-IN');
+}
+
+function proceedToPayment() {
+  // Validate address form
+  const form = document.getElementById('addressForm');
+  if (!form.checkValidity()) {
+    form.reportValidity();
+    return;
+  }
+
+  const name    = document.getElementById('checkoutName').value.trim();
+  const phone   = document.getElementById('checkoutPhone').value.trim();
+  const email   = document.getElementById('checkoutEmail').value.trim();
+  const address = document.getElementById('checkoutAddress').value.trim();
+  const city    = document.getElementById('checkoutCity').value.trim();
+  const pin     = document.getElementById('checkoutPin').value.trim();
+  const state   = document.getElementById('checkoutState').value.trim();
+
+  // Calculate total in paise (Razorpay expects paise)
+  const totalAmount = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const amountInPaise = totalAmount * 100;
+
+  // Generate a unique order ID
+  const orderId = 'ORD-' + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 4).toUpperCase();
+
+  // Update step indicator
+  document.getElementById('step1Indicator').classList.add('completed');
+  document.getElementById('step2Indicator').classList.add('active');
+
+  // ─── RAZORPAY OPTIONS ──────────────────────────────────────────────
+  const options = {
+    key: RAZORPAY_KEY_ID,
+    amount: amountInPaise,
+    currency: 'INR',
+    name: 'ALAN WALKER Store',
+    description: `Order ${orderId} — ${cart.length} item(s)`,
+    image: 'https://i.imgur.com/3g7nmJC.png', // Store logo
+    prefill: {
+      name: name,
+      email: email,
+      contact: phone
+    },
+    notes: {
+      order_id: orderId,
+      address: `${address}, ${city}, ${state} - ${pin}`
+    },
+    theme: {
+      color: '#9334e9'
+    },
+    handler: function (response) {
+      // ── PAYMENT SUCCESS ──
+      onPaymentSuccess(response, orderId, totalAmount, {
+        name, phone, email, address, city, pin, state
+      });
+    },
+    modal: {
+      ondismiss: function () {
+        // Payment modal closed without completing
+        document.getElementById('step2Indicator').classList.remove('active');
+        showToast('Payment cancelled. You can retry anytime.');
+      }
+    }
+  };
+
+  try {
+    const rzp = new Razorpay(options);
+    rzp.on('payment.failed', function (response) {
+      showToast('❌ Payment failed: ' + response.error.description);
+      document.getElementById('step2Indicator').classList.remove('active');
+    });
+    rzp.open();
+  } catch (err) {
+    showToast('⚠️ Could not open Razorpay. Check your API key.');
+    console.error('Razorpay error:', err);
+  }
+}
+
+// ─── ON PAYMENT SUCCESS ────────────────────────────────────────────────────────
+function onPaymentSuccess(response, orderId, totalAmount, addressData) {
+  const paymentId = response.razorpay_payment_id;
+
+  // Step indicators
+  document.getElementById('step2Indicator').classList.add('completed');
+  document.getElementById('step2Indicator').classList.remove('active');
+  document.getElementById('step3Indicator').classList.add('active', 'completed');
+
+  // Estimated delivery: 5–7 days from now
+  const deliveryDate = new Date();
+  deliveryDate.setDate(deliveryDate.getDate() + 5 + Math.floor(Math.random() * 3));
+  const deliveryStr = deliveryDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  // Build order object
+  const orderData = {
+    orderId: orderId,
+    paymentId: paymentId,
+    amount: totalAmount,
+    currency: 'INR',
+    status: 'confirmed',
+    items: cart.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      original: item.original,
+      qty: item.qty,
+      image: item.image,
+      category: item.category
+    })),
+    address: addressData,
+    estimatedDelivery: deliveryStr,
+    createdAt: Date.now()
+  };
+
+  // Save order to Firestore
+  const user = auth.currentUser;
+  if (user) {
+    firestore.collection('orders').doc(orderId).set({
+      ...orderData,
+      userId: user.uid,
+      userEmail: user.email
+    }).then(() => {
+      console.log('Order saved to Firestore:', orderId);
+      // Update user's order count & total spent
+      firestore.collection('users').doc(user.uid).update({
+        orders: firebase.firestore.FieldValue.increment(1),
+        totalSpent: firebase.firestore.FieldValue.increment(totalAmount)
+      }).catch(() => {});
+    }).catch(err => console.error('Error saving order:', err));
+  }
+
+  // Show success UI
+  document.getElementById('checkoutStep1').style.display = 'none';
+  document.getElementById('checkoutStep3').style.display = '';
+
+  document.getElementById('successOrderId').textContent = '#' + orderId;
+  document.getElementById('successAmount').textContent = '₹' + totalAmount.toLocaleString('en-IN');
+  document.getElementById('successPaymentId').textContent = paymentId;
+  document.getElementById('successDelivery').textContent = deliveryStr;
+
+  // Clear cart
+  cart = [];
+  updateCartBadge();
+  updateAllButtons();
+
+  showToast('🎉 Payment successful! Order placed.');
+  window.scrollTo(0, 0);
+}
+
+// ─── LOAD & RENDER ORDERS ON "MY ORDERS" PAGE ─────────────────────────────────
+function loadOrders() {
+  const container = document.getElementById('ordersContent');
+  const user = auth.currentUser;
+
+  if (!user) {
+    container.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+      <h3>Login to View Orders</h3>
+      <p>Please login to see your order history.</p>
+      <button class="start-shopping" onclick="switchAuthPage('login')">Login Now</button>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div style="text-align:center; padding:40px;">
+      <div class="orders-loading-spinner"></div>
+      <p style="color:var(--text3); margin-top:12px; font-size:13px;">Loading your orders…</p>
+    </div>
+  `;
+
+  firestore.collection('orders')
+    .where('userId', '==', user.uid)
+    .orderBy('createdAt', 'desc')
+    .get()
+    .then(snap => {
+      if (snap.empty) {
+        container.innerHTML = `
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+          <h3>No Orders Yet!</h3>
+          <p>Looks like you haven't placed any orders.<br/>Start shopping to see your orders here.</p>
+          <button class="start-shopping" onclick="switchPage('home')">Start Shopping</button>
+        `;
+        return;
+      }
+
+      container.innerHTML = '';
+      container.className = 'orders-list';
+
+      snap.forEach(doc => {
+        const order = doc.data();
+        const date = new Date(order.createdAt).toLocaleDateString('en-IN', {
+          day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+
+        const statusClass = order.status === 'confirmed' ? 'status-confirmed' : 'status-pending';
+        const statusLabel = order.status === 'confirmed' ? '✅ Confirmed' : '⏳ Pending';
+
+        const itemsHtml = order.items.map(item => `
+          <div class="order-item-mini">
+            <img src="${item.image}" alt="${item.name}" onerror="this.src='https://via.placeholder.com/50?text=P'" />
+            <div>
+              <div class="order-item-mini-name">${item.name}</div>
+              <div class="order-item-mini-meta">Qty: ${item.qty} · ₹${item.price}</div>
+            </div>
+          </div>
+        `).join('');
+
+        const orderCard = document.createElement('div');
+        orderCard.className = 'order-card';
+        orderCard.innerHTML = `
+          <div class="order-card-header">
+            <div>
+              <div class="order-id">#${order.orderId}</div>
+              <div class="order-date">${date}</div>
+            </div>
+            <div class="order-status ${statusClass}">${statusLabel}</div>
+          </div>
+          <div class="order-items-list">${itemsHtml}</div>
+          <div class="order-card-footer">
+            <div class="order-total">
+              <span>Total:</span>
+              <strong>₹${order.amount.toLocaleString('en-IN')}</strong>
+            </div>
+            <div class="order-delivery">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              Est. Delivery: ${order.estimatedDelivery || '—'}
+            </div>
+          </div>
+        `;
+        container.appendChild(orderCard);
+      });
+    })
+    .catch(err => {
+      console.error('Error loading orders:', err);
+      container.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+        <h3>No Orders Yet!</h3>
+        <p>Looks like you haven't placed any orders.<br/>Start shopping to see your orders here.</p>
+        <button class="start-shopping" onclick="switchPage('home')">Start Shopping</button>
+      `;
+    });
 }
 
 // UTILITIES
